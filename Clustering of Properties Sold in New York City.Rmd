@@ -1,0 +1,177 @@
+---
+title: 'Clustering of Properties Sold in New York City'
+author: "Achmad Gunar Saadi"
+date: "September 17, 2018"
+output:
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+    toc_float:
+      collapsed: FALSE
+    highlight:  pygments
+    theme: spacelab
+    number_sections: TRUE
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction {.tabset}
+## Objectives
+__Project: Clustering of Properties Sold in New York City__<br />
+
+Using two unsupervised learning algorithms, PCA and K-Means, and produce a R markdown document where you demonstrate an exercise of _clustering_ and _dimensionality reduction_ on the `nyc.csv` dataset. <br />
+
+The steps must be able to explain how you choose k for K-Means clustering, or how you choose to retain n number of dimensions for PCA from the original data. <br />
+
+## Data Explanation
+
+The dataset used is `nyc.csv`. This dataset is a record about properties sold (apartment, etc) in New York City market over a 12-month period from September 2016 to September 2017. As the reference check link https://www.kaggle.com/new-york-city/nyc-property-sales. <br />
+The dataset is originally from New York City Department of Finance and made available by City of New York which contains 22 variables as following:<br />
+
+**X**: ID number of customer(numeric)<br />
+**BOROUGH**: A digit code for the borough the property is located in; (1=Manhattan, 2=Bronx, 3=Brooklyn, 4=Queens, and 5=Staten Island) (numeric)<br />
+**NEIGHBORHOOD**: The neighborhood name (string)<br />
+**BUILDING.CLASS.CATEGORY**: Category class of the property (string)<br />
+**TAX.CLASS.AT.PRESENT, TAX.CLASS.AT.TIME.OF.SALE, BLOCK, LOT**: The combination of borough, block, and lot forms a unique key for property in New York City (numeric)<br />
+**EASE.MENT**:An easement is a right, such as a right of way, which allows an entity to make limited use of another's real property (string)<br />
+**BUILDING.CLASS.AT.PRESENT, BUILDING.CLASS.AT.TIME.OF.SALE**: The type of building at various points in time (string)<br />
+**ADDRESS**: Street address of the property (string)<br />
+**APARTMENT.NUMBER**: Apartment number if applicable (string)<br />
+**ZIP.CODE**: The property's postal code (numeric)<br />
+**RESIDENTIAL.UNITS**: The number of residential units at the listed property (numeric)<br />
+**COMMERCIAL.UNITS**: The number of commercial units at the listed property (numeric)<br />
+**TOTAL.UNITS**: Equal to residential units added by commercial units (numeric)<br />
+**LAND.SQUARE.FEET**: The land area of the property listed in square feet (numeric)<br />
+**GROSS.SQUARE.FEET**: The total area of all the floors of a building as measured from the exterior surfaces of the outside walls of the building, including the land area and space within any building or structure on the property (numeric)<br />
+**YEAR.BUILT**: Year the property was built (numeric)<br />
+**SALE.PRICE**: Price paid for the property (numeric)<br />
+**SALE.DATE**: Date the property sold (date)<br />
+
+## Read and understand the Dataset
+This is how the data look like (I only display the first 6 data) and including the 22 variables mentioned before and 84548 observations.<br />
+```{r}
+prop <- read.csv("./nyc.csv")
+head(prop)
+```
+The dataset comprises integer and factor data-type from str().
+
+# Exploring the Data
+## Quick Look the data
+
+By using summary(), we can tell that each variables has various range of value each other. There is no missing value (NA) in the dataset therefore doesn't need to data imputing process.
+```{r}
+summary(prop)
+anyNA(prop)
+```
+
+From summary of the dataset above, there is empty variable in the data. Hence, it is necessary to omit this variable.
+```{r}
+omitted <- c("EASE.MENT")
+prop<-prop[ , !(names(prop) %in% omitted)]
+anyNA(prop)
+str(prop)
+```
+
+As can be seen, the dataset now has no empty variables. Therefore there are total 21 variables remain.<br />
+Principally, in this assignment I'd like to combine PCA and K-means algorithms to tackle problems in clustering of properties sold in New York City using `nyc.csv`. We are gonna simplify the dimensions assessed using PCA (Principle Component Analysis) so that easier to be visualized in a diagram. The rest using K-means algorithm to cluster the properties. This method believed leads to better results than merely  using K-means alone.<br />
+
+# Processing
+
+## Pre-processing
+
+### Data Modification
+
+As the data contain many variables. To make it compact, convert all remain variables into integer and also exclude the unnecessary variables.
+
+```{r}
+library(dplyr)
+propt <- prop %>% 
+  mutate(RESIDENTIAL.UNITS= as.integer(RESIDENTIAL.UNITS),
+         COMMERCIAL.UNITS= as.integer(COMMERCIAL.UNITS),
+         TOTAL.UNITS= as.integer(TOTAL.UNITS),
+         LAND.SQUARE.FEET = as.integer(LAND.SQUARE.FEET),
+         GROSS.SQUARE.FEET = as.integer(GROSS.SQUARE.FEET),
+         YEAR.BUILT= as.integer(YEAR.BUILT),
+         SALE.PRICE = as.integer(SALE.PRICE)
+         ) %>% 
+  select_if(is.integer) %>%
+  select(-c(X, BOROUGH, BLOCK, LOT, ZIP.CODE, TAX.CLASS.AT.TIME.OF.SALE)) %>% 
+  filter(complete.cases(.))
+summary(propt)
+```
+
+
+### Scaling the dataset
+
+From the previous section, the summary of the data tell that there are different various range of each variables. The difference can be problematic for K-means clustering algorithm. It is because, the result will tend to affected by variables with higher range value. To make the weighting fairer, it is necessary scale the dataset. In this case, we use z-value scaling.
+
+```{r}
+prop_z <- scale(propt, center = T, scale=T)
+summary(prop_z)
+```
+
+```{r}
+cov(propt)[1:3,]
+cov(prop_z)[1:3,]
+```
+
+## PCA for features selection
+
+```{r}
+pt<-prcomp(propt)
+pz<-prcomp(prop_z)
+plot(pt)
+plot(pz)
+```
+```{r}
+biplot(pz, cex=0.5)
+```
+
+Just to verify the biplot, cor() can be  used to check.
+```{r}
+cor(propt$RESIDENTIAL.UNITS,propt$TOTAL.UNITS)
+cor(propt$COMMERCIAL.UNITS,propt$TOTAL.UNITS)
+cor(propt$GROSS.SQUARE.FEET, propt$LAND.SQUARE.FEET)
+cor(prop$YEAR.BUILT, as.numeric(prop$GROSS.SQUARE.FEET))
+cor(propt$SALE.PRICE, propt$GROSS.SQUARE.FEET)
+cor(propt$TOTAL.UNITS,propt$SALE.PRICE)
+```
+
+```{r}
+summary(pz)
+```
+
+From summary of principle components, we can conclude that all we need is the four first principle components because these four components themself have wrap 81% of all information from the dataset.
+
+## K-Means for Clustering
+
+We are gonna set number of cluster (k) equal to 5.
+
+```{r}
+prop_km <- kmeans(prop_z, 5)
+prop$clust <- as.factor(prop_km$cluster)
+```
+
+There are several properties from k-means algorithm result, such as: iteration, center, and cluster.
+```{r}
+head(prop_km$iter)
+head(prop_km$centers)
+head(prop_km$cluster)
+```
+
+## Combine PCA and K-Means
+
+```{r}
+library(FactoMineR)
+prop.pca<-PCA(prop_z,graph = F)
+plot(prop.pca,choix = "ind",label = "none")
+points(prop_km$centers, col=1:3, pch=15, cex=1.5)
+```
+
+# Conclusion
+
+By combining PCA and K-Means algorithms, we can do the clustring more effective and efficient because PCA select the significant predictors by the variance. In this project we choose 4 predictors to be assessed because those four predictors already cover 80% of total information. This method make clustering more efficient without lose the substantial information.<br />
